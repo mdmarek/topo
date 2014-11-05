@@ -12,9 +12,22 @@ type Topo struct {
 	rng  *rand.Rand
 }
 
-type Mesg struct {
-	Key  uint64
-	Body interface{}
+type Mesg interface {
+	Key() uint64
+	Body() interface{}
+}
+
+type mesg struct {
+	key  uint64
+	body string
+}
+
+func (m *mesg) Key() uint64 {
+	return m.key
+}
+
+func (m *mesg) Body() interface{} {
+	return m.body
 }
 
 func New(seed int64) *Topo {
@@ -23,20 +36,16 @@ func New(seed int64) *Topo {
 	return &Topo{done: done, rng: rng}
 }
 
-func NewM(body interface{}) *Mesg {
-	return &Mesg{0, body}
-}
-
-func NewPM(key uint64, body interface{}) *Mesg {
-	return &Mesg{key, body}
+func NewPM(key uint64, body string) *mesg {
+	return &mesg{key, body}
 }
 
 // Merge merges the input channels into a single output channel.
-func (topo *Topo) Merge(ins []<-chan *Mesg) <-chan *Mesg {
+func (topo *Topo) Merge(ins []<-chan Mesg) <-chan Mesg {
 	var wg sync.WaitGroup
-	out := make(chan *Mesg)
+	out := make(chan Mesg)
 
-	fanin := func(in <-chan *Mesg) {
+	fanin := func(in <-chan Mesg) {
 		defer wg.Done()
 		for n := range in {
 			select {
@@ -63,14 +72,14 @@ func (topo *Topo) Merge(ins []<-chan *Mesg) <-chan *Mesg {
 
 // Shuffle reads data from input channels, and sends messages to a randomly
 // chosen output channel.
-func (topo *Topo) Shuffle(nparts int, ins ...<-chan *Mesg) []<-chan *Mesg {
+func (topo *Topo) Shuffle(nparts int, ins ...<-chan Mesg) []<-chan Mesg {
 	var wg sync.WaitGroup
 	var robin uint64
 	wg.Add(len(ins))
 
-	outs := make([]chan *Mesg, nparts)
+	outs := make([]chan Mesg, nparts)
 	for i := 0; i < nparts; i++ {
-		outs[i] = make(chan *Mesg)
+		outs[i] = make(chan Mesg)
 	}
 
 	for i := 0; i < len(ins); i++ {
@@ -95,7 +104,7 @@ func (topo *Topo) Shuffle(nparts int, ins ...<-chan *Mesg) []<-chan *Mesg {
 		}
 	}()
 
-	temp := make([]<-chan *Mesg, nparts)
+	temp := make([]<-chan Mesg, nparts)
 	for i := 0; i < nparts; i++ {
 		temp[i] = outs[i]
 	}
@@ -105,13 +114,13 @@ func (topo *Topo) Shuffle(nparts int, ins ...<-chan *Mesg) []<-chan *Mesg {
 
 // Robin reads data from input channels, and sends messages round-robin to the
 // output channels.
-func (topo *Topo) Robin(nparts int, ins ...<-chan *Mesg) []<-chan *Mesg {
+func (topo *Topo) Robin(nparts int, ins ...<-chan Mesg) []<-chan Mesg {
 	var wg sync.WaitGroup
 	wg.Add(len(ins))
 
-	outs := make([]chan *Mesg, nparts)
+	outs := make([]chan Mesg, nparts)
 	for i := 0; i < nparts; i++ {
-		outs[i] = make(chan *Mesg)
+		outs[i] = make(chan Mesg)
 	}
 
 	for i := 0; i < len(ins); i++ {
@@ -135,7 +144,7 @@ func (topo *Topo) Robin(nparts int, ins ...<-chan *Mesg) []<-chan *Mesg {
 		}
 	}()
 
-	temp := make([]<-chan *Mesg, nparts)
+	temp := make([]<-chan Mesg, nparts)
 	for i := 0; i < nparts; i++ {
 		temp[i] = outs[i]
 	}
@@ -146,13 +155,13 @@ func (topo *Topo) Robin(nparts int, ins ...<-chan *Mesg) []<-chan *Mesg {
 // Partition reads data from input channels, and uses the message partition
 // key to consistently sends messages with the same key to the same output
 // channel.
-func (topo *Topo) Partition(nparts int, ins ...<-chan *Mesg) []<-chan *Mesg {
+func (topo *Topo) Partition(nparts int, ins ...<-chan Mesg) []<-chan Mesg {
 	var wg sync.WaitGroup
 	wg.Add(len(ins))
 
-	outs := make([]chan *Mesg, nparts)
+	outs := make([]chan Mesg, nparts)
 	for i := 0; i < nparts; i++ {
-		outs[i] = make(chan *Mesg)
+		outs[i] = make(chan Mesg)
 	}
 
 	for i := 0; i < len(ins); i++ {
@@ -161,7 +170,7 @@ func (topo *Topo) Partition(nparts int, ins ...<-chan *Mesg) []<-chan *Mesg {
 			defer wg.Done()
 			for n := range in {
 				select {
-				case outs[n.Key%uint64(nparts)] <- n:
+				case outs[n.Key()%uint64(nparts)] <- n:
 				case <-topo.done:
 					return
 				}
@@ -176,7 +185,7 @@ func (topo *Topo) Partition(nparts int, ins ...<-chan *Mesg) []<-chan *Mesg {
 		}
 	}()
 
-	temp := make([]<-chan *Mesg, nparts)
+	temp := make([]<-chan Mesg, nparts)
 	for i := 0; i < nparts; i++ {
 		temp[i] = outs[i]
 	}
@@ -184,20 +193,26 @@ func (topo *Topo) Partition(nparts int, ins ...<-chan *Mesg) []<-chan *Mesg {
 	return temp
 }
 
-type Vertex struct {
-	X int
-}
+// type Vertex struct {
+//	X int
+// }
 
-func Worker(name int, wg *sync.WaitGroup, work <-chan *Mesg) {
+func Worker(name int, wg *sync.WaitGroup, work <-chan Mesg) {
 	defer wg.Done()
 	fmt.Printf("Worker %d starting...\n", name)
 	for w := range work {
-		fmt.Printf("Worker %d: %v\n", name, w.Body.(*Vertex).X)
+		switch b := w.Body().(type) {
+		default:
+			fmt.Printf("Worker %d: unknown body type: %v\n", name, b)
+		case string:
+			fmt.Printf("Worker %d: %v\n", name, b)
+		}
+
 	}
 	fmt.Printf("Worker %d finished.\n", name)
 }
 
-func Kafka(topo *Topo) <-chan *Mesg {
+func Kafka(topo *Topo) <-chan Mesg {
 
 	gen := func(start int, finish int) <-chan int {
 		out := make(chan int)
@@ -210,13 +225,13 @@ func Kafka(topo *Topo) <-chan *Mesg {
 		return out
 	}
 
-	inputs := func(done <-chan int, in <-chan int) <-chan *Mesg {
-		out := make(chan *Mesg)
+	inputs := func(done <-chan int, in <-chan int) <-chan Mesg {
+		out := make(chan Mesg)
 		go func() {
 			defer close(out)
 			for n := range in {
 				select {
-				case out <- NewPM(uint64(n), &Vertex{n}):
+				case out <- NewPM(uint64(n), fmt.Sprintf("%v", n)):
 				case <-topo.done:
 					return
 				}
@@ -227,7 +242,7 @@ func Kafka(topo *Topo) <-chan *Mesg {
 
 	c := gen(1, 20)
 
-	partitions := make([]<-chan *Mesg, 2)
+	partitions := make([]<-chan Mesg, 2)
 	partitions[0] = inputs(topo.done, c)
 	partitions[1] = inputs(topo.done, c)
 

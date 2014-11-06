@@ -1,0 +1,89 @@
+package topoutil
+
+import (
+	"bufio"
+	"fmt"
+	"net/http"
+	"sync"
+
+	"github.com/mdmarek/topo"
+)
+
+type mesg struct {
+	key  uint64
+	body string
+}
+
+func (m *mesg) Key() uint64 {
+	return m.key
+}
+
+func (m *mesg) Body() interface{} {
+	return m.body
+}
+
+// Sink reads from the work chan and prints the body of each message. When
+// the work chan is closed it joins the wait group.
+func Sink(name int, wg *sync.WaitGroup, work <-chan topo.Mesg) {
+	defer wg.Done()
+	fmt.Printf("Sink %d starting...\n", name)
+	for w := range work {
+		switch b := w.Body().(type) {
+		default:
+			fmt.Printf("Sink %d: unknown body type: %T :: %v\n", name, b, b)
+		case string:
+			fmt.Printf("Sink %d: %v\n", name, b)
+		}
+
+	}
+	fmt.Printf("Sink %d finished.\n", name)
+}
+
+// NewMeetup creates a channel of messags sourced from meetup.com's public stream.
+// More info at: http://www.meetup.com/meetup_api/docs/stream/2/rsvps/
+func NewMeetup(t topo.Topo) (<-chan topo.Mesg, error) {
+	return NewChunkedHttpSource("http://stream.meetup.com/2/rsvps", t, "meetup")
+}
+
+// NewUsaGov creates a channel of messags sourced from USA.gov's public stream of bit.ly clicks.
+// More info at: http://www.usa.gov/About/developer-resources/1usagov.shtml
+func NewUsaGov(t topo.Topo) (<-chan topo.Mesg, error) {
+	return NewChunkedHttpSource("http://developer.usa.gov/1usagov", t, "usagov")
+}
+
+// NewChunkedHttpSource creates a channel of messages sourced from a chunked HTTP connection
+// which sends each message delimited by a newline. Paremter 'url' is the source, and 'name'
+// is included in errors printed.
+func NewChunkedHttpSource(url string, t topo.Topo, name string) (<-chan topo.Mesg, error) {
+	if resp, err := http.Get(url); err != nil {
+		return nil, err
+	} else {
+		out := make(chan topo.Mesg)
+		go func(sigcom <-chan int) {
+			// Scanner by default will split on newlines, if the chunked HTTP source
+			// delimits by newline then this scanner will work.
+			scanner := bufio.NewScanner(resp.Body)
+			for {
+				scanner.Scan()
+				err = scanner.Err()
+				if err != nil {
+					fmt.Printf("error: source: %v: %v\n", name, err)
+					close(out)
+					resp.Body.Close()
+					return
+				}
+				// Read the text body of the scan, since there
+				// was no error.
+				body := scanner.Text()
+				select {
+				case out <- &mesg{0, body}:
+				case <-sigcom:
+					close(out)
+					resp.Body.Close()
+					return
+				}
+			}
+		}(t.SigCom())
+		return out, nil
+	}
+}

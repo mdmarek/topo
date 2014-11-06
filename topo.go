@@ -1,47 +1,50 @@
-package main
+package topo
 
 import (
-	"fmt"
 	"math/rand"
 	"sync"
 	"sync/atomic"
 )
 
-type Topo struct {
-	done <-chan int
-	rng  *rand.Rand
+type topo struct {
+	sig <-chan int
+	rng *rand.Rand
 }
 
+// Topology represents a graph of communicating channel readers and writers.
+type Topo interface {
+	SigCom() <-chan int
+	Merge(ins []<-chan Mesg) <-chan Mesg
+	Robin(nparts int, ins ...<-chan Mesg) []<-chan Mesg
+	Shuffle(nparts int, ins ...<-chan Mesg) []<-chan Mesg
+	Partition(nparts int, ins ...<-chan Mesg) []<-chan Mesg
+}
+
+// Mesg represents a message routable by the topology. The Key() method
+// is used to route the message in certain topologies. Body() is used
+// to express something user specific.
 type Mesg interface {
 	Key() uint64
 	Body() interface{}
 }
 
-type mesg struct {
-	key  uint64
-	body string
-}
-
-func (m *mesg) Key() uint64 {
-	return m.key
-}
-
-func (m *mesg) Body() interface{} {
-	return m.body
-}
-
-func New(seed int64) *Topo {
-	done := make(chan int)
+// New creates a new topology, where seed is the seed used for
+// random shuffle topologies.
+func New(seed int64) Topo {
+	sig := make(chan int)
 	rng := rand.New(rand.NewSource(seed))
-	return &Topo{done: done, rng: rng}
+	return &topo{sig: sig, rng: rng}
 }
 
-func NewPM(key uint64, body string) *mesg {
-	return &mesg{key, body}
+// SigCom returns the topology's 'signal communication' channel, which
+// contains a message when the topology signals that it is done and
+// users should start their exit procedures.
+func (topo *topo) SigCom() <-chan int {
+	return topo.sig
 }
 
 // Merge merges the input channels into a single output channel.
-func (topo *Topo) Merge(ins []<-chan Mesg) <-chan Mesg {
+func (topo *topo) Merge(ins []<-chan Mesg) <-chan Mesg {
 	var wg sync.WaitGroup
 	out := make(chan Mesg)
 
@@ -50,7 +53,7 @@ func (topo *Topo) Merge(ins []<-chan Mesg) <-chan Mesg {
 		for n := range in {
 			select {
 			case out <- n:
-			case <-topo.done:
+			case <-topo.sig:
 				return
 			}
 		}
@@ -71,8 +74,8 @@ func (topo *Topo) Merge(ins []<-chan Mesg) <-chan Mesg {
 }
 
 // Shuffle reads data from input channels, and sends messages to a randomly
-// chosen output channel.
-func (topo *Topo) Shuffle(nparts int, ins ...<-chan Mesg) []<-chan Mesg {
+// chosen output channel. Number of output channels is set by nparts.
+func (topo *topo) Shuffle(nparts int, ins ...<-chan Mesg) []<-chan Mesg {
 	var wg sync.WaitGroup
 	var robin uint64
 	wg.Add(len(ins))
@@ -90,7 +93,7 @@ func (topo *Topo) Shuffle(nparts int, ins ...<-chan Mesg) []<-chan Mesg {
 				robin = atomic.AddUint64(&robin, 1)
 				select {
 				case outs[robin%uint64(nparts)] <- n:
-				case <-topo.done:
+				case <-topo.sig:
 					return
 				}
 			}
@@ -113,8 +116,8 @@ func (topo *Topo) Shuffle(nparts int, ins ...<-chan Mesg) []<-chan Mesg {
 }
 
 // Robin reads data from input channels, and sends messages round-robin to the
-// output channels.
-func (topo *Topo) Robin(nparts int, ins ...<-chan Mesg) []<-chan Mesg {
+// output channels. Number of output channels is set by nparts.
+func (topo *topo) Robin(nparts int, ins ...<-chan Mesg) []<-chan Mesg {
 	var wg sync.WaitGroup
 	wg.Add(len(ins))
 
@@ -130,7 +133,7 @@ func (topo *Topo) Robin(nparts int, ins ...<-chan Mesg) []<-chan Mesg {
 			for n := range in {
 				select {
 				case outs[topo.rng.Int()%nparts] <- n:
-				case <-topo.done:
+				case <-topo.sig:
 					return
 				}
 			}
@@ -154,8 +157,8 @@ func (topo *Topo) Robin(nparts int, ins ...<-chan Mesg) []<-chan Mesg {
 
 // Partition reads data from input channels, and uses the message partition
 // key to consistently sends messages with the same key to the same output
-// channel.
-func (topo *Topo) Partition(nparts int, ins ...<-chan Mesg) []<-chan Mesg {
+// channel. Number of output channels is set by nparts.
+func (topo *topo) Partition(nparts int, ins ...<-chan Mesg) []<-chan Mesg {
 	var wg sync.WaitGroup
 	wg.Add(len(ins))
 
@@ -171,7 +174,7 @@ func (topo *Topo) Partition(nparts int, ins ...<-chan Mesg) []<-chan Mesg {
 			for n := range in {
 				select {
 				case outs[n.Key()%uint64(nparts)] <- n:
-				case <-topo.done:
+				case <-topo.sig:
 					return
 				}
 			}
@@ -191,78 +194,4 @@ func (topo *Topo) Partition(nparts int, ins ...<-chan Mesg) []<-chan Mesg {
 	}
 
 	return temp
-}
-
-// type Vertex struct {
-//	X int
-// }
-
-func Worker(name int, wg *sync.WaitGroup, work <-chan Mesg) {
-	defer wg.Done()
-	fmt.Printf("Worker %d starting...\n", name)
-	for w := range work {
-		switch b := w.Body().(type) {
-		default:
-			fmt.Printf("Worker %d: unknown body type: %v\n", name, b)
-		case string:
-			fmt.Printf("Worker %d: %v\n", name, b)
-		}
-
-	}
-	fmt.Printf("Worker %d finished.\n", name)
-}
-
-func Kafka(topo *Topo) <-chan Mesg {
-
-	gen := func(start int, finish int) <-chan int {
-		out := make(chan int)
-		go func() {
-			for i := start; i <= finish; i++ {
-				out <- i
-			}
-			close(out)
-		}()
-		return out
-	}
-
-	inputs := func(done <-chan int, in <-chan int) <-chan Mesg {
-		out := make(chan Mesg)
-		go func() {
-			defer close(out)
-			for n := range in {
-				select {
-				case out <- NewPM(uint64(n), fmt.Sprintf("%v", n)):
-				case <-topo.done:
-					return
-				}
-			}
-		}()
-		return out
-	}
-
-	c := gen(1, 20)
-
-	partitions := make([]<-chan Mesg, 2)
-	partitions[0] = inputs(topo.done, c)
-	partitions[1] = inputs(topo.done, c)
-
-	return topo.Merge(partitions)
-}
-
-func main() {
-	nworkers := 2
-
-	wg := new(sync.WaitGroup)
-	wg.Add(nworkers)
-
-	topo := New(1120202)
-
-	topic := Kafka(topo)
-	outputs := topo.Partition(nworkers, topic)
-
-	for i := 0; i < nworkers; i++ {
-		go Worker(i, wg, outputs[i])
-	}
-
-	wg.Wait()
 }

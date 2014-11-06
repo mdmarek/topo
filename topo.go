@@ -7,13 +7,14 @@ import (
 )
 
 type topo struct {
-	sig <-chan int
+	sig chan int
 	rng *rand.Rand
 }
 
 // Topology represents a graph of communicating channel readers and writers.
 type Topo interface {
-	SigCom() <-chan int
+	Exit()
+	ExitChan() <-chan int
 	Merge(ins []<-chan Mesg) <-chan Mesg
 	Robin(nparts int, ins ...<-chan Mesg) []<-chan Mesg
 	Shuffle(nparts int, ins ...<-chan Mesg) []<-chan Mesg
@@ -36,10 +37,22 @@ func New(seed int64) Topo {
 	return &topo{sig: sig, rng: rng}
 }
 
-// SigCom returns the topology's 'signal communication' channel, which
-// contains a message when the topology signals that it is done and
-// users should start their exit procedures.
-func (topo *topo) SigCom() <-chan int {
+// Exit requests that the topology exists. This is done my closing the
+// topology's exit channel, all intermediate stages read this channel
+// in their select-statements and exit. The user defined sources
+// must also read the exit channel in their select-statements
+// and close their output channels and clean up when the exit
+// channel closes.
+func (topo *topo) Exit() {
+	close(topo.sig)
+}
+
+// ExitChan returns the topology's 'exit' channel, which can be closed
+// by calling the topology's Exit() method. Sources should use this
+// channel in their select-statements because a closed channel is
+// always considered available and will return the channels zero
+// value.
+func (topo *topo) ExitChan() <-chan int {
 	return topo.sig
 }
 

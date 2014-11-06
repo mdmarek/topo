@@ -37,7 +37,7 @@ func New(seed int64) Topo {
 	return &topo{sig: sig, rng: rng}
 }
 
-// Exit requests that the topology exists. This is done my closing the
+// Exit requests that the topology exits. This is done my closing the
 // topology's exit channel, all intermediate stages read this channel
 // in their select-statements and exit. The user defined sources
 // must also read the exit channel in their select-statements
@@ -63,10 +63,22 @@ func (topo *topo) Merge(ins []<-chan Mesg) <-chan Mesg {
 
 	fanin := func(in <-chan Mesg) {
 		defer wg.Done()
+		// Notice that the for-loop will exit only if upstream
+		// closes the input channel. This is intentional.
+		// Normally "upstream" will have been created by one of
+		// the other topology methods such as Shuffle() or
+		// Robin() which should correctly close their output
+		// channels, which would be this range's intput.
 		for n := range in {
 			select {
 			case out <- n:
 			case <-topo.sig:
+				// This works because a closed channel is
+				// always selectable. When someone asks
+				// for the topology to exit, it will
+				// close this channel, making it
+				// selectable, and this goroutine
+				// will exit.
 				return
 			}
 		}
@@ -102,11 +114,23 @@ func (topo *topo) Shuffle(nparts int, ins ...<-chan Mesg) []<-chan Mesg {
 		in := ins[i]
 		go func() {
 			defer wg.Done()
+			// Notice that the for-loop will exit only if upstream
+			// closes the input channel. This is intentional.
+			// Normally "upstream" will have been created by one of
+			// the other topology methods such as Shuffle() or
+			// Robin() which should correctly close their output
+			// channels, which would be this range's intput.
 			for n := range in {
 				robin = atomic.AddUint64(&robin, 1)
 				select {
 				case outs[robin%uint64(nparts)] <- n:
 				case <-topo.sig:
+					// This works because a closed channel is
+					// always selectable. When someone asks
+					// for the topology to exit, it will
+					// close this channel, making it
+					// selectable, and this goroutine
+					// will exit.
 					return
 				}
 			}
@@ -143,10 +167,22 @@ func (topo *topo) Robin(nparts int, ins ...<-chan Mesg) []<-chan Mesg {
 		in := ins[i]
 		go func() {
 			defer wg.Done()
+			// Notice that the for-loop will exit only if upstream
+			// closes the input channel. This is intentional.
+			// Normally "upstream" will have been created by one of
+			// the other topology methods such as Shuffle() or
+			// Robin() which should correctly close their output
+			// channels, which would be this range's intput.
 			for n := range in {
 				select {
 				case outs[topo.rng.Int()%nparts] <- n:
 				case <-topo.sig:
+					// This works because a closed channel is
+					// always selectable. When someone asks
+					// for the topology to exit, it will
+					// close this channel, making it
+					// selectable, and this goroutine
+					// will exit.
 					return
 				}
 			}
@@ -184,10 +220,22 @@ func (topo *topo) Partition(nparts int, ins ...<-chan Mesg) []<-chan Mesg {
 		in := ins[i]
 		go func() {
 			defer wg.Done()
+			// Notice that the for-loop will exit only if upstream
+			// closes the input channel. This is intentional.
+			// Normally "upstream" will have been created by one of
+			// the other topology methods such as Shuffle() or
+			// Robin() which should correctly close their output
+			// channels, which would be this range's intput.
 			for n := range in {
 				select {
 				case outs[n.Key()%uint64(nparts)] <- n:
 				case <-topo.sig:
+					// This works because a closed channel is
+					// always selectable. When someone asks
+					// for the topology to exit, it will
+					// close this channel, making it
+					// selectable, and this goroutine
+					// will exit.
 					return
 				}
 			}

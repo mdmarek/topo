@@ -41,13 +41,13 @@ func Sink(name int, wg *sync.WaitGroup, work <-chan topo.Mesg) {
 
 // NewMeetup creates a channel of messags sourced from meetup.com's public stream.
 // More info at: http://www.meetup.com/meetup_api/docs/stream/2/rsvps/
-func NewMeetup(t topo.Topo) (<-chan topo.Mesg, error) {
+func NewMeetupSource(t topo.Topo) (<-chan topo.Mesg, error) {
 	return NewChunkedHttpSource("http://stream.meetup.com/2/rsvps", t, "meetup")
 }
 
 // NewUsaGov creates a channel of messags sourced from USA.gov's public stream of bit.ly clicks.
 // More info at: http://www.usa.gov/About/developer-resources/1usagov.shtml
-func NewUsaGov(t topo.Topo) (<-chan topo.Mesg, error) {
+func NewUsaGovSource(t topo.Topo) (<-chan topo.Mesg, error) {
 	return NewChunkedHttpSource("http://developer.usa.gov/1usagov", t, "usagov")
 }
 

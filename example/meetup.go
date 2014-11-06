@@ -16,7 +16,7 @@ func main() {
 	wg.Add(nworkers)
 
 	t := topo.New(seed)
-	source, err := topoutil.NewMeetup(t)
+	source, err := topoutil.NewMeetupSource(t)
 
 	if err != nil {
 		fmt.Printf("Failed to open source: %v\n", err)

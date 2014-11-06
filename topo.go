@@ -11,7 +11,7 @@ type topo struct {
 	rng *rand.Rand
 }
 
-// Topology represents a graph of communicating channel readers and writers.
+// Topology represents a graph of communicating channel-readers and channel-writers.
 type Topo interface {
 	Exit()
 	ExitChan() <-chan int

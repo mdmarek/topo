@@ -60,6 +60,7 @@ func NewChunkedHttpSource(url string, t topo.Topo, name string) (<-chan topo.Mes
 	} else {
 		out := make(chan topo.Mesg)
 		go func(exit <-chan int) {
+			defer close(out)
 			// Scanner by default will split on newlines, if the chunked HTTP source
 			// delimits by newline then this scanner will work.
 			scanner := bufio.NewScanner(resp.Body)
@@ -68,8 +69,6 @@ func NewChunkedHttpSource(url string, t topo.Topo, name string) (<-chan topo.Mes
 				err = scanner.Err()
 				if err != nil {
 					fmt.Printf("error: source: %v: %v\n", name, err)
-					close(out)
-					resp.Body.Close()
 					return
 				}
 				// Read the text body of the scan, since there
@@ -78,8 +77,6 @@ func NewChunkedHttpSource(url string, t topo.Topo, name string) (<-chan topo.Mes
 				select {
 				case out <- &mesg{0, body}:
 				case <-exit:
-					close(out)
-					resp.Body.Close()
 					return
 				}
 			}

@@ -98,9 +98,9 @@ func (topo *topo) Merge(ins []<-chan Mesg) <-chan Mesg {
 	return out
 }
 
-// Shuffle reads data from input channels, and sends messages to a randomly
-// chosen output channel. Number of output channels is set by nparts.
-func (topo *topo) Shuffle(nparts int, ins ...<-chan Mesg) []<-chan Mesg {
+// Robin reads data from input channels, and sends messages round-robin to the
+// output channels. Number of output channels is set by nparts.
+func (topo *topo) Robin(nparts int, ins ...<-chan Mesg) []<-chan Mesg {
 	var wg sync.WaitGroup
 	var robin uint64
 	wg.Add(len(ins))
@@ -152,9 +152,9 @@ func (topo *topo) Shuffle(nparts int, ins ...<-chan Mesg) []<-chan Mesg {
 	return temp
 }
 
-// Robin reads data from input channels, and sends messages round-robin to the
-// output channels. Number of output channels is set by nparts.
-func (topo *topo) Robin(nparts int, ins ...<-chan Mesg) []<-chan Mesg {
+// Shuffle reads data from input channels, and sends messages to a randomly
+// chosen output channel. Number of output channels is set by nparts.
+func (topo *topo) Shuffle(nparts int, ins ...<-chan Mesg) []<-chan Mesg {
 	var wg sync.WaitGroup
 	wg.Add(len(ins))
 

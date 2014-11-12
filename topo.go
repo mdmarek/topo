@@ -6,14 +6,14 @@ import (
 )
 
 type topo struct {
-	sig chan int
+	sig chan bool
 	rng *rand.Rand
 }
 
 // Topology represents a graph of communicating channel-readers and channel-writers.
 type Topo interface {
 	Exit()
-	ExitChan() <-chan int
+	ExitChan() <-chan bool
 	Merge(ins ...<-chan Mesg) <-chan Mesg
 	Shuffle(nparts int, ins ...<-chan Mesg) []<-chan Mesg
 	Partition(nparts int, ins ...<-chan Mesg) []<-chan Mesg
@@ -30,7 +30,7 @@ type Mesg interface {
 // New creates a new topology, where seed is the seed used for
 // random shuffle topologies.
 func New(seed int64) Topo {
-	sig := make(chan int)
+	sig := make(chan bool)
 	rng := rand.New(rand.NewSource(seed))
 	return &topo{sig: sig, rng: rng}
 }
@@ -50,7 +50,7 @@ func (topo *topo) Exit() {
 // channel in their select-statements because a closed channel is
 // always considered available and will return the channels zero
 // value.
-func (topo *topo) ExitChan() <-chan int {
+func (topo *topo) ExitChan() <-chan bool {
 	return topo.sig
 }
 

@@ -50,7 +50,7 @@ func newSink() *sink {
 // strings for the message body, and are also set as the message key.
 func newNumberSource(first, last int, topo Topo) <-chan Mesg {
 	out := make(chan Mesg)
-	go func(exit <-chan int) {
+	go func(exit <-chan bool) {
 		defer close(out)
 		for i := first; i < last; i++ {
 			select {

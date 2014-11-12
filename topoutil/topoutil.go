@@ -73,7 +73,7 @@ func NewChunkedHttpSource(url string, t topo.Topo, name string) (<-chan topo.Mes
 		return nil, err
 	} else {
 		out := make(chan topo.Mesg)
-		go func(exit <-chan int) {
+		go func(exit <-chan bool) {
 			defer close(out)
 			// Scanner by default will split on newlines, if the chunked HTTP source
 			// delimits by newline then this scanner will work.

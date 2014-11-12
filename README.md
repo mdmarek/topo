@@ -8,6 +8,7 @@ message processing for you while handling the plumbing.
 
 # Example Code
 
+```go
 	package main
 
 	import (
@@ -47,3 +48,4 @@ message processing for you while handling the plumbing.
 		// Wait for the sinks to finish, if ever.
 		wg.Wait()
 	}
+```

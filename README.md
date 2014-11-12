@@ -67,11 +67,11 @@ Mesg {
 Topo works through three simple compositions of channels to form pipelines: 
 `Merge`, `Shuffle`, and `Partition`.
 
-A shuffle takes n input channels and connects them to m output channels. Each
-message from one of the n input channels is sent to a random output channel.
+`Merge` takes _n_ input channels and merges them into one output channel.
 
-A partition takes n input channels and connects them to m output channels. Each
-message from one of the n input channels is checked for a numeric key, this is
-moduled by m, and the message is sent to the corresponding output channel.
+`Shuffle` takes _n_ input channels and connects them to _m_ output channels. Each
+message from one of the _n_ input channels is sent to a random output channel.
 
-A merge takes n input channels and merges them into one output channel.
+`Partition` takes _n_ input channels and connects them to _m_ output channels. Each
+message from one of the _n_ input channels is checked for a numeric key, this is
+moduled by _m_, and the message is sent to the corresponding output channel.

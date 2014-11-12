@@ -1,7 +1,6 @@
 package topo
 
 import (
-	"math"
 	"strconv"
 	"sync"
 	"testing"
@@ -21,12 +20,12 @@ func (m *tmesg) Body() interface{} {
 }
 
 type sink struct {
-	known   []interface{}
+	sunk    []interface{}
 	unknown []interface{}
 }
 
 // tester reads messages from the work channel and adds those
-// of type 'string' to the 'known' slice, and anything else
+// of type 'string' to the 'sunk' slice, and anything else
 // to the 'unknown' slice.
 func tester(s *sink, name int, wg *sync.WaitGroup, work <-chan Mesg) {
 	defer wg.Done()
@@ -35,7 +34,7 @@ func tester(s *sink, name int, wg *sync.WaitGroup, work <-chan Mesg) {
 		default:
 			s.unknown = append(s.unknown, b)
 		case string:
-			s.known = append(s.known, b)
+			s.sunk = append(s.sunk, b)
 		}
 
 	}
@@ -43,7 +42,7 @@ func tester(s *sink, name int, wg *sync.WaitGroup, work <-chan Mesg) {
 
 // newSink creates a new sink.
 func newSink() *sink {
-	return &sink{known: make([]interface{}, 0), unknown: make([]interface{}, 0)}
+	return &sink{sunk: make([]interface{}, 0), unknown: make([]interface{}, 0)}
 }
 
 // newNumberSource sends messages of consecutive numbers, starting at 0
@@ -64,15 +63,13 @@ func newNumberSource(count uint64, topo Topo) <-chan Mesg {
 	return out
 }
 
-// TestRobin tests that the round-robin topology send inputs in alternating
-// fasion to two consumers. The numbers 0 to 10 are sent, meaning that
-// each of the conumers should have all odd numbers and the other
-// all even numbers, with the absolute difference between
-// corresponding collected entries being 1.
-func TestRobin(t *testing.T) {
+// TestShuffle tests that the shuffle topology sends all the messages
+// and between all sinks, all sent messages should be received.
+func TestShuffle(t *testing.T) {
 	const (
 		diffexpected = 1
 		count        = 10
+		expected     = ((count - 1) * count) / 2 // Expected sum of 0 to count, inclusive
 		nworkers     = 2
 	)
 
@@ -82,10 +79,10 @@ func TestRobin(t *testing.T) {
 	// Set up the topology with:
 	//    1. One source of consecutive numbers starting at 0;
 	//    2. Two sinks for those numbers, each should
-	//       receive every other number.
+	//       receive a random subset.
 	topo := New(123)
 	source := newNumberSource(count, topo)
-	outputs := topo.Robin(nworkers, source)
+	outputs := topo.Shuffle(nworkers, source)
 
 	// Start the sinks.
 	sinks := make([]*sink, nworkers)
@@ -96,24 +93,21 @@ func TestRobin(t *testing.T) {
 
 	wg.Wait()
 
-	// Check that the absolute difference between
-	// corresponding numbers is the expected diff.
-	var n1 float64
-	var n2 float64
-	var err error
-	for i := 0; i < count/2; i++ {
-		n1, err = strconv.ParseFloat(sinks[0].known[i].(string), 64)
-		if err != nil {
-			t.Errorf("Error parsing number from received message body: %v\n", err)
+	// We test that all numbers were received, we can
+	// do this by summing the received numbers and
+	// checking that the total is as expected.
+	var total float64
+	for i := 0; i < nworkers; i++ {
+		for j, nstr := range sinks[i].sunk {
+			if n, err := strconv.ParseFloat(nstr.(string), 64); err != nil {
+				t.Errorf("Failed to parse value at sinks[%d].sunk[%d]: %v\n", i, j, err)
+			} else {
+				total += n
+			}
 		}
+	}
 
-		n2, err = strconv.ParseFloat(sinks[1].known[i].(string), 64)
-		if err != nil {
-			t.Errorf("Error parsing number from received message body: %v\n", err)
-		}
-
-		if diff := math.Abs(n2 - n1); diff != diffexpected {
-			t.Errorf("Absolute value of difference between sink[0].known[%d] and sink[1].known[%d] should of been %d, but was Abs(%.0f - %.0f) = %.0f.", i, i, diffexpected, n2, n1, diff)
-		}
+	if total != expected {
+		t.Errorf("Expected total sum for enumeration of 0 to %v is: %v, but was: %v\n", count, expected, total)
 	}
 }

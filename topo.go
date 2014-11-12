@@ -3,7 +3,6 @@ package topo
 import (
 	"math/rand"
 	"sync"
-	"sync/atomic"
 )
 
 type topo struct {
@@ -16,7 +15,6 @@ type Topo interface {
 	Exit()
 	ExitChan() <-chan int
 	Merge(ins []<-chan Mesg) <-chan Mesg
-	Robin(nparts int, ins ...<-chan Mesg) []<-chan Mesg
 	Shuffle(nparts int, ins ...<-chan Mesg) []<-chan Mesg
 	Partition(nparts int, ins ...<-chan Mesg) []<-chan Mesg
 }
@@ -96,60 +94,6 @@ func (topo *topo) Merge(ins []<-chan Mesg) <-chan Mesg {
 	}()
 
 	return out
-}
-
-// Robin reads data from input channels, and sends messages round-robin to the
-// output channels. Number of output channels is set by nparts.
-func (topo *topo) Robin(nparts int, ins ...<-chan Mesg) []<-chan Mesg {
-	var wg sync.WaitGroup
-	var robin uint64
-	wg.Add(len(ins))
-
-	outs := make([]chan Mesg, nparts)
-	for i := 0; i < nparts; i++ {
-		outs[i] = make(chan Mesg)
-	}
-
-	for i := 0; i < len(ins); i++ {
-		in := ins[i]
-		go func() {
-			defer wg.Done()
-			// Notice that the for-loop will exit only if upstream
-			// closes the input channel. This is intentional.
-			// Normally "upstream" will have been created by one of
-			// the other topology methods such as Shuffle() or
-			// Robin() which should correctly close their output
-			// channels, which would be this range's intput.
-			for n := range in {
-				robin = atomic.AddUint64(&robin, 1)
-				select {
-				case outs[robin%uint64(nparts)] <- n:
-				case <-topo.sig:
-					// This works because a closed channel is
-					// always selectable. When someone asks
-					// for the topology to exit, it will
-					// close this channel, making it
-					// selectable, and this goroutine
-					// will exit.
-					return
-				}
-			}
-		}()
-	}
-
-	go func() {
-		wg.Wait()
-		for i := 0; i < nparts; i++ {
-			close(outs[i])
-		}
-	}()
-
-	temp := make([]<-chan Mesg, nparts)
-	for i := 0; i < nparts; i++ {
-		temp[i] = outs[i]
-	}
-
-	return temp
 }
 
 // Shuffle reads data from input channels, and sends messages to a randomly

@@ -14,7 +14,7 @@ type topo struct {
 type Topo interface {
 	Exit()
 	ExitChan() <-chan int
-	Merge(ins []<-chan Mesg) <-chan Mesg
+	Merge(ins ...<-chan Mesg) <-chan Mesg
 	Shuffle(nparts int, ins ...<-chan Mesg) []<-chan Mesg
 	Partition(nparts int, ins ...<-chan Mesg) []<-chan Mesg
 }
@@ -55,7 +55,7 @@ func (topo *topo) ExitChan() <-chan int {
 }
 
 // Merge merges the input channels into a single output channel.
-func (topo *topo) Merge(ins []<-chan Mesg) <-chan Mesg {
+func (topo *topo) Merge(ins ...<-chan Mesg) <-chan Mesg {
 	var wg sync.WaitGroup
 	out := make(chan Mesg)
 

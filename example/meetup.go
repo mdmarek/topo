@@ -23,9 +23,9 @@ func main() {
 		return
 	}
 
-	// Round-robins messages read from the source
+	// Shuffles messages read from the source
 	// to each output channel.
-	outputs := t.Robin(nworkers, source)
+	outputs := t.Shuffle(nworkers, source)
 
 	// Each output channel is read by one Sink, which
 	// prints to stdout the messages it receives.

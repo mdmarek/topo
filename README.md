@@ -49,3 +49,29 @@ func main() {
 	wg.Wait()
 }
 ```
+
+# Messages
+
+Topo creates channels of type `chan topo.Mesg`, and a `Mesg` is defined as the
+interface: 
+
+```go
+Mesg { 
+	Key() uint64
+	Body() interface{}
+}
+```
+
+# Three Basic Compositions
+
+Topo works through three simple compositions of channels to form pipelines: 
+`Merge`, `Shuffle`, and `Partition`.
+
+A shuffle takes n input channels and connects them to m output channels. Each
+message from one of the n input channels is sent to a random output channel.
+
+A partition takes n input channels and connects them to m output channels. Each
+message from one of the n input channels is checked for a numeric key, this is
+moduled by m, and the message is sent to the corresponding output channel.
+
+A merge takes n input channels and merges them into one output channel.

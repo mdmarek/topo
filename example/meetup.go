@@ -15,6 +15,7 @@ func main() {
 	wg := new(sync.WaitGroup)
 	wg.Add(nworkers)
 
+	// Create a new topo and source of streaming data from meetup.com.
 	t := topo.New(seed)
 	source, err := topoutil.NewMeetupSource(t)
 

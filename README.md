@@ -25,8 +25,8 @@ message processing for you while handling the plumbing.
 		wg := new(sync.WaitGroup)
 		wg.Add(nworkers)
 
+		// Create a new topo and source of streaming data from meetup.com.
 		t := topo.New(seed)
-		// Creates a source of streaming data from meetup.com.
 		source, err := topoutil.NewMeetupSource(t)
 
 		if err != nil {

@@ -56,7 +56,16 @@ func New(seed int64) Topo {
 // and close their output channels and clean up when the exit
 // channel closes.
 func (topo *topo) Exit() {
-	close(topo.sig)
+	select {
+	case _, open := <-topo.sig:
+		if open {
+			close(topo.sig)
+		} else {
+			// Already closed, do nothing
+		}
+	default:
+		close(topo.sig)
+	}
 }
 
 // ExitChan returns the topology's 'exit' channel, which can be closed

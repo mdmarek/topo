@@ -18,6 +18,7 @@ import (
 	"bufio"
 	"fmt"
 	"net/http"
+	"strconv"
 	"sync"
 
 	"github.com/mdmarek/topo"
@@ -51,6 +52,24 @@ func Sink(name int, wg *sync.WaitGroup, work <-chan topo.Mesg) {
 
 	}
 	fmt.Printf("Sink %d finished.\n", name)
+}
+
+// NewNumberSource sends messages of consecutive numbers, starting at first
+// and going up to, but not including, last. The numbers are converted to
+// strings for the message body, and are also set as the message key.
+func NewNumberSource(first, last int, t topo.Topo) <-chan topo.Mesg {
+	out := make(chan topo.Mesg)
+	go func(exit <-chan bool) {
+		defer close(out)
+		for i := first; i < last; i++ {
+			select {
+			case out <- &mesg{key: uint64(i), body: strconv.Itoa(i)}:
+			case <-exit:
+				return
+			}
+		}
+	}(t.ExitChan())
+	return out
 }
 
 // NewMeetup creates a channel of messags sourced from meetup.com's public stream.

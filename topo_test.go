@@ -243,6 +243,51 @@ func TestPartition(t *testing.T) {
 	}
 }
 
+// TestExit tests that reading only a partial number of messages and then
+// calling Exit should correctly close all channels and goroutines and
+// no deadlock panic should occure at the end of the test.
+func TestExit(t *testing.T) {
+	const (
+		diffexpected = 1
+		first        = 0
+		last         = 10
+		expected     = ((last - 1) * last) / 2
+		nworkers     = 2
+	)
+
+	wg := new(sync.WaitGroup)
+	wg.Add(nworkers)
+
+	// Set up the topology with:
+	//    1. One source of consecutive numbers starting at 0;
+	//    2. Two sinks for those numbers, each should
+	//       receive either the odd or even subset.
+	topo := New(123)
+	source := newNumberSource(first, last, topo)
+	outputs := topo.Partition(nworkers, source)
+
+	go func() {
+		m := <-outputs[0]
+		if m.Key() != 0 {
+			t.Errorf("Expected message from outputs[%v] was not %v but rather: %v\n", 0, 0, m.Key())
+		}
+		wg.Done()
+	}()
+	go func() {
+		m := <-outputs[1]
+		if m.Key() != 1 {
+			t.Errorf("Expected message from outputs[%v] was not %v but rather: %v\n", 1, 1, m.Key())
+		}
+		wg.Done()
+	}()
+
+	// Reading only a partial number of the total messages should
+	// NOT cause a deadlock panic at the end of the test.
+
+	wg.Wait()
+	topo.Exit()
+}
+
 // BenchmarkShuffle1Deep tests a shuffle topology when there is only
 // 1 shuffle hop to get to the sink. The intention is to see how
 // much performance is affected by simply introducing more
@@ -270,7 +315,7 @@ func BenchmarkShuffle1Deep(b *testing.B) {
 	}
 }
 
-// BenchmarkShuffle1Deep tests a shuffle topology when there are only
+// BenchmarkShuffle1Deep tests a shuffle topology when there are
 // 2 shuffle hops to get to the sink.
 func BenchmarkShuffle2Deep(b *testing.B) {
 
@@ -296,7 +341,7 @@ func BenchmarkShuffle2Deep(b *testing.B) {
 	}
 }
 
-// BenchmarkShuffle1Deep tests a shuffle topology when there are only
+// BenchmarkShuffle1Deep tests a shuffle topology when there are
 // 3 shuffle hops to get to the sink.
 func BenchmarkShuffle3Deep(b *testing.B) {
 
@@ -323,7 +368,7 @@ func BenchmarkShuffle3Deep(b *testing.B) {
 	}
 }
 
-// BenchmarkShuffle1Deep tests a shuffle topology when there are only
+// BenchmarkShuffle1Deep tests a shuffle topology when there are
 // 4 shuffle hops to get to the sink.
 func BenchmarkShuffle4Deep(b *testing.B) {
 
@@ -378,7 +423,7 @@ func BenchmarkPartition1Deep(b *testing.B) {
 	}
 }
 
-// BenchmarkPartition1Deep tests a shuffle topology when there are only
+// BenchmarkPartition1Deep tests a shuffle topology when there are
 // 2 partition hops to get to the sink.
 func BenchmarkPartition2Deep(b *testing.B) {
 
@@ -404,7 +449,7 @@ func BenchmarkPartition2Deep(b *testing.B) {
 	}
 }
 
-// BenchmarkPartition1Deep tests a shuffle topology when there are only
+// BenchmarkPartition1Deep tests a shuffle topology when there are
 // 3 partition hops to get to the sink.
 func BenchmarkPartition3Deep(b *testing.B) {
 
@@ -431,7 +476,7 @@ func BenchmarkPartition3Deep(b *testing.B) {
 	}
 }
 
-// BenchmarkPartition1Deep tests a shuffle topology when there are only
+// BenchmarkPartition1Deep tests a shuffle topology when there are
 // 4 partition hops to get to the sink.
 func BenchmarkPartition4Deep(b *testing.B) {
 

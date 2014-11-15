@@ -16,6 +16,7 @@ package topoutil
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -37,12 +38,12 @@ func (m *mesg) Body() interface{} {
 	return m.body
 }
 
-// Sink reads from the work chan and prints the body of each message. When
-// the work chan is closed it joins the wait group.
-func Sink(name int, wg *sync.WaitGroup, work <-chan topo.Mesg) {
+// Sink reads from the input chan and prints the body of each message. When
+// the input chan is closed it joins the wait group.
+func Sink(name int, wg *sync.WaitGroup, input <-chan topo.Mesg) {
 	defer wg.Done()
 	fmt.Printf("Sink %d starting...\n", name)
-	for w := range work {
+	for w := range input {
 		switch b := w.Body().(type) {
 		default:
 			fmt.Printf("Sink %d: unknown body type: %T :: %v\n", name, b, b)
@@ -56,8 +57,13 @@ func Sink(name int, wg *sync.WaitGroup, work <-chan topo.Mesg) {
 
 // NewNumberSource sends messages of consecutive numbers, starting at first
 // and going up to, but not including, last. The numbers are converted to
-// strings for the message body, and are also set as the message key.
-func NewNumberSource(first, last int, t topo.Topo) <-chan topo.Mesg {
+// strings for the message body, and are also set as the message key. Both
+// first and last must be positive.
+func NewNumberSource(first, last int, t topo.Topo) (<-chan topo.Mesg, error) {
+	if first < 0 || last < 0 || first >= last {
+		return nil, errors.New("first and last must be positive, and first must be less than last")
+	}
+
 	out := make(chan topo.Mesg)
 	go func(exit <-chan bool) {
 		defer close(out)
@@ -69,7 +75,7 @@ func NewNumberSource(first, last int, t topo.Topo) <-chan topo.Mesg {
 			}
 		}
 	}(t.ExitChan())
-	return out
+	return out, nil
 }
 
 // NewMeetup creates a channel of messags sourced from meetup.com's public stream.

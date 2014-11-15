@@ -74,7 +74,7 @@ message from one of the _n_ input channels is sent to a random output channel.
 
 `Partition` takes _n_ input channels and connects them to _m_ output channels. Each
 message from one of the _n_ input channels is checked for a numeric key, this is
-moduled by _m_, and the message is sent to the corresponding output channel.
+moduloed by _m_, and the message is sent to the corresponding output channel.
 
 # Sources
 

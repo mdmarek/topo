@@ -1,7 +1,7 @@
 TOPO
 ====
 
-A library to creat in process topologies of goroutines connected by channels.
+A library to create in process topologies of goroutines connected by channels.
 Topo does boilerplate work as outlined in http://blog.golang.org/pipelines.
 You receive correctly connected input and output channels, leaving the
 message processing for you while handling the plumbing.
@@ -62,7 +62,7 @@ Mesg {
 }
 ```
 
-# Three Basic Compositions
+# Compositions
 
 Topo works through three simple compositions of channels to form pipelines: 
 `Merge`, `Shuffle`, and `Partition`.
@@ -75,3 +75,35 @@ message from one of the _n_ input channels is sent to a random output channel.
 `Partition` takes _n_ input channels and connects them to _m_ output channels. Each
 message from one of the _n_ input channels is checked for a numeric key, this is
 moduled by _m_, and the message is sent to the corresponding output channel.
+
+# Sources
+
+When writing a source of data for the topology it should use the topologies exit channel
+in its select statement, otherwise a deadlock panic may occure. The basic structure is
+as follows:
+
+```go
+func NewMySource(... params ..., t topo.Topo) (<-chan topo.Mesg, error) {
+
+	...
+
+	out := make(chan topo.Mesg)
+	go func(exit <-chan bool) {
+		defer close(out)
+		for ... {
+			select {
+			case out <- produce():
+			case <-exit:
+				return
+			}
+		}
+	}(t.ExitChan())
+
+	...
+
+	return out, nil
+}
+```
+
+Keep in mind to pass the exit channel as a parameter to any started goroutiness rather
+than as a closure.

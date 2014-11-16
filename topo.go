@@ -139,7 +139,7 @@ func (topo *topo) Shuffle(nparts int, ins ...<-chan Mesg) []<-chan Mesg {
 			// Normally "upstream" will have been created by one of
 			// the other topology methods such as Shuffle() or
 			// Robin() which should correctly close their output
-			// channels, which would be this range's intput.
+			// channels, which would be this range's input.
 			for n := range in {
 				select {
 				case outs[topo.rng.Int()%nparts] <- n:

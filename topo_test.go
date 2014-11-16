@@ -77,7 +77,7 @@ func newNumberSource(first, last int, topo Topo) <-chan Mesg {
 	return out
 }
 
-// TestMerge tests that merge topology compines multiple sources into
+// TestMerge tests that merge topology combines multiple sources into
 // a single output, all messages sent should be received on this
 // single output.
 func TestMerge(t *testing.T) {
@@ -245,7 +245,7 @@ func TestPartition(t *testing.T) {
 
 // TestExit tests that reading only a partial number of messages and then
 // calling Exit should correctly close all channels and goroutines and
-// no deadlock panic should occure at the end of the test.
+// no deadlock panic should occur at the end of the test.
 func TestExit(t *testing.T) {
 	const (
 		diffexpected = 1

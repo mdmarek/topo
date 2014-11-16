@@ -22,14 +22,13 @@ import (
 	"github.com/mdmarek/topo/topoutil"
 )
 
-const seed = 92882
 const nworkers = 2
 
 func main() {
 	wg := new(sync.WaitGroup)
 	wg.Add(nworkers)
 
-	t := topo.New(seed)
+	t := topo.New()
 	source, err := topoutil.NewUsaGovSource(t)
 
 	if err != nil {

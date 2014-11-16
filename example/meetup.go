@@ -22,7 +22,6 @@ import (
 	"github.com/mdmarek/topo/topoutil"
 )
 
-const seed = 12282
 const nworkers = 2
 
 func main() {
@@ -30,7 +29,7 @@ func main() {
 	wg.Add(nworkers)
 
 	// Create a new topo and source of streaming data from meetup.com.
-	t := topo.New(seed)
+	t := topo.New()
 	source, err := topoutil.NewMeetupSource(t)
 
 	if err != nil {

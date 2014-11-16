@@ -4,7 +4,8 @@ TOPO
 A library to create in process topologies of goroutines connected by channels.
 Topo does boilerplate work as outlined in http://blog.golang.org/pipelines.
 You receive correctly connected input and output channels, leaving the
-message processing for you while handling the plumbing.
+message processing for you while handling the plumbing. Topo strives to be
+simple, all interaction are via proper Go channels, no wrapping interfaces.
 
 # Example Code
 
@@ -19,7 +20,6 @@ import (
 	"github.com/mdmarek/topo/topoutil"
 )
 
-const seed = 12282
 const nworkers = 2
 
 func main() {
@@ -27,7 +27,7 @@ func main() {
 	wg.Add(nworkers)
 
 	// Create a new topo and source of streaming data from meetup.com.
-	t := topo.New(seed)
+	t := topo.New()
 	source, err := topoutil.NewMeetupSource(t)
 
 	if err != nil {
@@ -67,10 +67,11 @@ Mesg {
 Topo works through three simple compositions of channels to form pipelines: 
 `Merge`, `Shuffle`, and `Partition`.
 
-`Merge` takes _n_ input channels and merges them into one output channel.
+`Merge` takes _n_ input channels and merges them into one output channel.  
 
 `Shuffle` takes _n_ input channels and connects them to _m_ output channels. Each
-message from one of the _n_ input channels is sent to a random output channel.
+message from one of the _n_ input channels is sent to a random available output 
+channel.
 
 `Partition` takes _n_ input channels and connects them to _m_ output channels. Each
 message from one of the _n_ input channels is checked for a numeric key, this is

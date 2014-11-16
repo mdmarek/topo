@@ -14,14 +14,10 @@
 
 package topo
 
-import (
-	"math/rand"
-	"sync"
-)
+import "sync"
 
 type topo struct {
 	sig chan bool
-	rng *rand.Rand
 }
 
 // Topology represents a graph of communicating channel-readers and channel-writers.
@@ -43,10 +39,9 @@ type Mesg interface {
 
 // New creates a new topology, where seed is the seed used for
 // random shuffle topologies.
-func New(seed int64) Topo {
+func New() Topo {
 	sig := make(chan bool)
-	rng := rand.New(rand.NewSource(seed))
-	return &topo{sig: sig, rng: rng}
+	return &topo{sig: sig}
 }
 
 // Exit requests that the topology exits. This is done my closing the
@@ -119,30 +114,33 @@ func (topo *topo) Merge(ins ...<-chan Mesg) <-chan Mesg {
 	return out
 }
 
-// Shuffle reads data from input channels, and sends messages to a randomly
-// chosen output channel. Number of output channels is set by nparts.
+// Shuffle reads data from input channels, and sends messages to a non blocked
+// output channel. Number of output channels is set by nparts. When multiple
+// output channels are available for write, one is chosen aleatoricly.
 func (topo *topo) Shuffle(nparts int, ins ...<-chan Mesg) []<-chan Mesg {
 	var wg sync.WaitGroup
-	wg.Add(len(ins))
+	wg.Add(nparts)
+
+	input := topo.Merge(ins...)
 
 	outs := make([]chan Mesg, nparts)
 	for i := 0; i < nparts; i++ {
 		outs[i] = make(chan Mesg)
 	}
 
-	for i := 0; i < len(ins); i++ {
-		in := ins[i]
-		go func() {
+	for i := 0; i < nparts; i++ {
+		go func(in <-chan Mesg, out chan<- Mesg) {
+			defer close(out)
 			defer wg.Done()
 			// Notice that the for-loop will exit only if upstream
 			// closes the input channel. This is intentional.
 			// Normally "upstream" will have been created by one of
-			// the other topology methods such as Shuffle() or
-			// Robin() which should correctly close their output
-			// channels, which would be this range's intput.
+			// the other topology methods such as Partition()
+			// which should correctly close their output channels,
+			// this range's intput.
 			for n := range in {
 				select {
-				case outs[topo.rng.Int()%nparts] <- n:
+				case out <- n:
 				case <-topo.sig:
 					// This works because a closed channel is
 					// always selectable. When someone asks
@@ -153,15 +151,8 @@ func (topo *topo) Shuffle(nparts int, ins ...<-chan Mesg) []<-chan Mesg {
 					return
 				}
 			}
-		}()
+		}(input, outs[i])
 	}
-
-	go func() {
-		wg.Wait()
-		for i := 0; i < nparts; i++ {
-			close(outs[i])
-		}
-	}()
 
 	temp := make([]<-chan Mesg, nparts)
 	for i := 0; i < nparts; i++ {

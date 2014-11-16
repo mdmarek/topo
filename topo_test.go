@@ -97,7 +97,7 @@ func TestMerge(t *testing.T) {
 	//       and the second over [mid,last)
 	//    2. Merge the two sources into one output
 	//       channel.
-	topo := New(123)
+	topo := New()
 	source1 := newNumberSource(first, mid, topo)
 	source2 := newNumberSource(mid, last, topo)
 	output := topo.Merge(source1, source2)
@@ -140,7 +140,7 @@ func TestShuffle(t *testing.T) {
 	//    1. One source of consecutive numbers starting at 0;
 	//    2. Two sinks for those numbers, each should
 	//       receive a random subset.
-	topo := New(123)
+	topo := New()
 	source := newNumberSource(first, last, topo)
 	outputs := topo.Shuffle(nworkers, source)
 
@@ -192,7 +192,7 @@ func TestPartition(t *testing.T) {
 	//    2. Two sinks for those numbers, sink 0 should
 	//       receive the evens, sink 1 should receive
 	//       the odds.
-	topo := New(123)
+	topo := New()
 	source := newNumberSource(first, last, topo)
 	outputs := topo.Partition(nworkers, source)
 
@@ -262,7 +262,7 @@ func TestExit(t *testing.T) {
 	//    1. One source of consecutive numbers starting at 0;
 	//    2. Two sinks for those numbers, each should
 	//       receive either the odd or even subset.
-	topo := New(123)
+	topo := New()
 	source := newNumberSource(first, last, topo)
 	outputs := topo.Partition(nworkers, source)
 
@@ -300,7 +300,7 @@ func BenchmarkShuffle1Deep(b *testing.B) {
 		wg := new(sync.WaitGroup)
 		wg.Add(nworkers)
 
-		topo := New(123)
+		topo := New()
 		source := newNumberSource(0, 1000, topo)
 		outputs := topo.Shuffle(nworkers, source)
 
@@ -325,7 +325,7 @@ func BenchmarkShuffle2Deep(b *testing.B) {
 		wg := new(sync.WaitGroup)
 		wg.Add(nworkers)
 
-		topo := New(123)
+		topo := New()
 		source := newNumberSource(0, 1000, topo)
 		outputs1 := topo.Shuffle(nworkers, source)
 		outputs2 := topo.Shuffle(nworkers, outputs1...)
@@ -351,7 +351,7 @@ func BenchmarkShuffle3Deep(b *testing.B) {
 		wg := new(sync.WaitGroup)
 		wg.Add(nworkers)
 
-		topo := New(123)
+		topo := New()
 		source := newNumberSource(0, 1000, topo)
 		outputs1 := topo.Shuffle(nworkers, source)
 		outputs2 := topo.Shuffle(nworkers, outputs1...)
@@ -378,7 +378,7 @@ func BenchmarkShuffle4Deep(b *testing.B) {
 		wg := new(sync.WaitGroup)
 		wg.Add(nworkers)
 
-		topo := New(123)
+		topo := New()
 		source := newNumberSource(0, 1000, topo)
 		outputs1 := topo.Shuffle(nworkers, source)
 		outputs2 := topo.Shuffle(nworkers, outputs1...)
@@ -408,7 +408,7 @@ func BenchmarkPartition1Deep(b *testing.B) {
 		wg := new(sync.WaitGroup)
 		wg.Add(nworkers)
 
-		topo := New(123)
+		topo := New()
 		source := newNumberSource(0, 1000, topo)
 		outputs := topo.Partition(nworkers, source)
 
@@ -433,7 +433,7 @@ func BenchmarkPartition2Deep(b *testing.B) {
 		wg := new(sync.WaitGroup)
 		wg.Add(nworkers)
 
-		topo := New(123)
+		topo := New()
 		source := newNumberSource(0, 1000, topo)
 		outputs1 := topo.Partition(nworkers, source)
 		outputs2 := topo.Partition(nworkers, outputs1...)
@@ -459,7 +459,7 @@ func BenchmarkPartition3Deep(b *testing.B) {
 		wg := new(sync.WaitGroup)
 		wg.Add(nworkers)
 
-		topo := New(123)
+		topo := New()
 		source := newNumberSource(0, 1000, topo)
 		outputs1 := topo.Partition(nworkers, source)
 		outputs2 := topo.Partition(nworkers, outputs1...)
@@ -486,7 +486,7 @@ func BenchmarkPartition4Deep(b *testing.B) {
 		wg := new(sync.WaitGroup)
 		wg.Add(nworkers)
 
-		topo := New(123)
+		topo := New()
 		source := newNumberSource(0, 1000, topo)
 		outputs1 := topo.Partition(nworkers, source)
 		outputs2 := topo.Partition(nworkers, outputs1...)

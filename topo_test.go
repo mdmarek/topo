@@ -38,6 +38,13 @@ type sink struct {
 	unknown []interface{}
 }
 
+// passer passes messages from input to output without modification.
+func passer(in <-chan Mesg, out chan<- Mesg) {
+	for m := range in {
+		out <- m
+	}
+}
+
 // tester reads messages from the work channel and adds those
 // of type 'string' to the 'sunk' slice, and anything else
 // to the 'unknown' slice.
@@ -97,7 +104,10 @@ func TestMerge(t *testing.T) {
 	//       and the second over [mid,last)
 	//    2. Merge the two sources into one output
 	//       channel.
-	topo := New()
+	topo, err := New()
+	if err != nil {
+		t.Errorf("Failed to create topology: %v", err)
+	}
 	source1 := newNumberSource(first, mid, topo)
 	source2 := newNumberSource(mid, last, topo)
 	output := topo.Merge(source1, source2)
@@ -140,9 +150,12 @@ func TestShuffle(t *testing.T) {
 	//    1. One source of consecutive numbers starting at 0;
 	//    2. Two sinks for those numbers, each should
 	//       receive a random subset.
-	topo := New()
+	topo, err := New()
+	if err != nil {
+		t.Errorf("Failed to create topology: %v", err)
+	}
 	source := newNumberSource(first, last, topo)
-	outputs := topo.Shuffle(nworkers, source)
+	outputs := topo.Shuffle(nworkers, passer, source)
 
 	// Start the sinks.
 	sinks := make([]*sink, nworkers)
@@ -192,9 +205,12 @@ func TestPartition(t *testing.T) {
 	//    2. Two sinks for those numbers, sink 0 should
 	//       receive the evens, sink 1 should receive
 	//       the odds.
-	topo := New()
+	topo, err := New()
+	if err != nil {
+		t.Errorf("Failed to create topology: %v", err)
+	}
 	source := newNumberSource(first, last, topo)
-	outputs := topo.Partition(nworkers, source)
+	outputs := topo.Partition(nworkers, passer, source)
 
 	// Start the sinks.
 	sinks := make([]*sink, nworkers)
@@ -262,9 +278,13 @@ func TestExit(t *testing.T) {
 	//    1. One source of consecutive numbers starting at 0;
 	//    2. Two sinks for those numbers, each should
 	//       receive either the odd or even subset.
-	topo := New()
+	topo, err := New()
+	if err != nil {
+		t.Errorf("Failed to create topology: %v", err)
+	}
 	source := newNumberSource(first, last, topo)
-	outputs := topo.Partition(nworkers, source)
+	shuffed := topo.Shuffle(nworkers, passer, source)
+	outputs := topo.Partition(nworkers, passer, shuffed...)
 
 	go func() {
 		m := <-outputs[0]
@@ -288,114 +308,6 @@ func TestExit(t *testing.T) {
 	topo.Exit()
 }
 
-// BenchmarkShuffle1Deep tests a shuffle topology when there is only
-// 1 shuffle hop to get to the sink. The intention is to see how
-// much performance is affected by simply introducing more
-// channel hops irregardless of work done between channels.
-func BenchmarkShuffle1Deep(b *testing.B) {
-
-	const nworkers = 1
-
-	for i := 0; i < b.N; i++ {
-		wg := new(sync.WaitGroup)
-		wg.Add(nworkers)
-
-		topo := New()
-		source := newNumberSource(0, 1000, topo)
-		outputs := topo.Shuffle(nworkers, source)
-
-		// Start the sinks.
-		sinks := make([]*sink, nworkers)
-		for i := 0; i < nworkers; i++ {
-			sinks[i] = newSink()
-			go tester(sinks[i], wg, outputs[i])
-		}
-
-		wg.Wait()
-	}
-}
-
-// BenchmarkShuffle1Deep tests a shuffle topology when there are
-// 2 shuffle hops to get to the sink.
-func BenchmarkShuffle2Deep(b *testing.B) {
-
-	const nworkers = 1
-
-	for i := 0; i < b.N; i++ {
-		wg := new(sync.WaitGroup)
-		wg.Add(nworkers)
-
-		topo := New()
-		source := newNumberSource(0, 1000, topo)
-		outputs1 := topo.Shuffle(nworkers, source)
-		outputs2 := topo.Shuffle(nworkers, outputs1...)
-
-		// Start the sinks.
-		sinks := make([]*sink, nworkers)
-		for i := 0; i < nworkers; i++ {
-			sinks[i] = newSink()
-			go tester(sinks[i], wg, outputs2[i])
-		}
-
-		wg.Wait()
-	}
-}
-
-// BenchmarkShuffle1Deep tests a shuffle topology when there are
-// 3 shuffle hops to get to the sink.
-func BenchmarkShuffle3Deep(b *testing.B) {
-
-	const nworkers = 1
-
-	for i := 0; i < b.N; i++ {
-		wg := new(sync.WaitGroup)
-		wg.Add(nworkers)
-
-		topo := New()
-		source := newNumberSource(0, 1000, topo)
-		outputs1 := topo.Shuffle(nworkers, source)
-		outputs2 := topo.Shuffle(nworkers, outputs1...)
-		outputs3 := topo.Shuffle(nworkers, outputs2...)
-
-		// Start the sinks.
-		sinks := make([]*sink, nworkers)
-		for i := 0; i < nworkers; i++ {
-			sinks[i] = newSink()
-			go tester(sinks[i], wg, outputs3[i])
-		}
-
-		wg.Wait()
-	}
-}
-
-// BenchmarkShuffle1Deep tests a shuffle topology when there are
-// 4 shuffle hops to get to the sink.
-func BenchmarkShuffle4Deep(b *testing.B) {
-
-	const nworkers = 1
-
-	for i := 0; i < b.N; i++ {
-		wg := new(sync.WaitGroup)
-		wg.Add(nworkers)
-
-		topo := New()
-		source := newNumberSource(0, 1000, topo)
-		outputs1 := topo.Shuffle(nworkers, source)
-		outputs2 := topo.Shuffle(nworkers, outputs1...)
-		outputs3 := topo.Shuffle(nworkers, outputs2...)
-		outputs4 := topo.Shuffle(nworkers, outputs3...)
-
-		// Start the sinks.
-		sinks := make([]*sink, nworkers)
-		for i := 0; i < nworkers; i++ {
-			sinks[i] = newSink()
-			go tester(sinks[i], wg, outputs4[i])
-		}
-
-		wg.Wait()
-	}
-}
-
 // BenchmarkPartition1Deep tests a shuffle topology when there is only
 // 1 partition hop to get to the sink. The intention is to see how
 // much performance is affected by simply introducing more
@@ -408,9 +320,12 @@ func BenchmarkPartition1Deep(b *testing.B) {
 		wg := new(sync.WaitGroup)
 		wg.Add(nworkers)
 
-		topo := New()
+		topo, err := New()
+		if err != nil {
+			b.Errorf("Failed to create topology: %v", err)
+		}
 		source := newNumberSource(0, 1000, topo)
-		outputs := topo.Partition(nworkers, source)
+		outputs := topo.Partition(nworkers, passer, source)
 
 		// Start the sinks.
 		sinks := make([]*sink, nworkers)
@@ -433,10 +348,13 @@ func BenchmarkPartition2Deep(b *testing.B) {
 		wg := new(sync.WaitGroup)
 		wg.Add(nworkers)
 
-		topo := New()
+		topo, err := New()
+		if err != nil {
+			b.Errorf("Failed to create topology: %v", err)
+		}
 		source := newNumberSource(0, 1000, topo)
-		outputs1 := topo.Partition(nworkers, source)
-		outputs2 := topo.Partition(nworkers, outputs1...)
+		outputs1 := topo.Partition(nworkers, passer, source)
+		outputs2 := topo.Partition(nworkers, passer, outputs1...)
 
 		// Start the sinks.
 		sinks := make([]*sink, nworkers)
@@ -459,11 +377,14 @@ func BenchmarkPartition3Deep(b *testing.B) {
 		wg := new(sync.WaitGroup)
 		wg.Add(nworkers)
 
-		topo := New()
+		topo, err := New()
+		if err != nil {
+			b.Errorf("Failed to create topology: %v", err)
+		}
 		source := newNumberSource(0, 1000, topo)
-		outputs1 := topo.Partition(nworkers, source)
-		outputs2 := topo.Partition(nworkers, outputs1...)
-		outputs3 := topo.Partition(nworkers, outputs2...)
+		outputs1 := topo.Partition(nworkers, passer, source)
+		outputs2 := topo.Partition(nworkers, passer, outputs1...)
+		outputs3 := topo.Partition(nworkers, passer, outputs2...)
 
 		// Start the sinks.
 		sinks := make([]*sink, nworkers)
@@ -486,12 +407,15 @@ func BenchmarkPartition4Deep(b *testing.B) {
 		wg := new(sync.WaitGroup)
 		wg.Add(nworkers)
 
-		topo := New()
+		topo, err := New()
+		if err != nil {
+			b.Errorf("Failed to create topology: %v", err)
+		}
 		source := newNumberSource(0, 1000, topo)
-		outputs1 := topo.Partition(nworkers, source)
-		outputs2 := topo.Partition(nworkers, outputs1...)
-		outputs3 := topo.Partition(nworkers, outputs2...)
-		outputs4 := topo.Partition(nworkers, outputs3...)
+		outputs1 := topo.Partition(nworkers, passer, source)
+		outputs2 := topo.Partition(nworkers, passer, outputs1...)
+		outputs3 := topo.Partition(nworkers, passer, outputs2...)
+		outputs4 := topo.Partition(nworkers, passer, outputs3...)
 
 		// Start the sinks.
 		sinks := make([]*sink, nworkers)

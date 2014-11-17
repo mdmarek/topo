@@ -43,14 +43,8 @@ func (m *mesg) Body() interface{} {
 func Sink(name int, wg *sync.WaitGroup, input <-chan topo.Mesg) {
 	defer wg.Done()
 	fmt.Printf("Sink %d starting...\n", name)
-	for w := range input {
-		switch b := w.Body().(type) {
-		default:
-			fmt.Printf("Sink %d: unknown body type: %T :: %v\n", name, b, b)
-		case string:
-			fmt.Printf("Sink %d: %v\n", name, b)
-		}
-
+	for m := range input {
+		fmt.Printf("Sink %d: %T :: %v\n", name, m, m.Body())
 	}
 	fmt.Printf("Sink %d finished.\n", name)
 }

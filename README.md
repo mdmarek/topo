@@ -22,22 +22,30 @@ import (
 
 const nworkers = 2
 
+func worker(in <-chan topo.Mesg, out chan<- topo.Mesg) {
+	... do something ...
+}
+
 func main() {
 	wg := new(sync.WaitGroup)
 	wg.Add(nworkers)
 
 	// Create a new topo and source of streaming data from meetup.com.
-	t := topo.New()
-	source, err := topoutil.NewMeetupSource(t)
+	t, err := topo.New()
+	if err != nil {
+		fmt.Printf("Failed to create topo: %v\n", err)
+		return
+	}
 
+	source, err := topoutil.NewMeetupSource(t)
 	if err != nil {
 		fmt.Printf("Failed to open source: %v\n", err)
 		return
 	}
 
 	// Shuffles messages read from the source
-	// to each output channel.
-	outputs := t.Shuffle(nworkers, source)
+	// to each worker.
+	outputs := t.Shuffle(nworkers, worker, source)
 
 	// Each output channel is read by one Sink, which
 	// prints to stdout the messages it receives.
@@ -52,7 +60,7 @@ func main() {
 
 # Messages
 
-Topo creates channels of type `chan topo.Mesg`, and a `Mesg` is defined as the
+Topo creates channels of type `chan Mesg`, and a `Mesg` is defined as the
 interface: 
 
 ```go
@@ -69,13 +77,13 @@ Topo works through three simple compositions of channels to form pipelines:
 
 `Merge` takes _n_ input channels and merges them into one output channel.  
 
-`Shuffle` takes _n_ input channels and connects them to _m_ output channels. Each
-message from one of the _n_ input channels is sent to a random available output 
-channel.
+`Shuffle` takes _n_ input channels and connects them to _m_ functions writing their output 
+to _m_ output channels. Messages from the _n_ input channels are sent to the first
+available function.
 
-`Partition` takes _n_ input channels and connects them to _m_ output channels. Each
-message from one of the _n_ input channels is checked for a numeric key, this is
-moduloed by _m_, and the message is sent to the corresponding output channel.
+`Partition` takes _n_ input channels and connects them to _m_ functions writing their output
+to _m_ output channels. Messages from the _n_ input channels are routed by taking the
+message's key value modulo _m_.
 
 # Sources
 

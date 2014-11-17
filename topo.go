@@ -26,12 +26,12 @@ type topo struct {
 
 // Topology represents a graph of communicating channel-readers and channel-writers.
 type Topo interface {
-	ConfChanSize(csize int) error
+	ConfChanSize(s int) error
 	Exit()
 	ExitChan() <-chan bool
 	Merge(ins ...<-chan Mesg) <-chan Mesg
-	Shuffle(nparts int, f func(<-chan Mesg, chan<- Mesg), ins ...<-chan Mesg) []<-chan Mesg
-	Partition(nparts int, f func(<-chan Mesg, chan<- Mesg), ins ...<-chan Mesg) []<-chan Mesg
+	Shuffle(n int, f func(<-chan Mesg, chan<- Mesg), ins ...<-chan Mesg) []<-chan Mesg
+	Partition(n int, f func(<-chan Mesg, chan<- Mesg), ins ...<-chan Mesg) []<-chan Mesg
 }
 
 // Mesg represents a message routable by the topology. The Key() method
@@ -50,11 +50,11 @@ func New() (Topo, error) {
 
 // ConfChanSize configures the size of output channels create by calls to
 // Partition. This method should be called before use of the topology.
-func (topo *topo) ConfChanSize(csize int) error {
-	if csize < 0 {
+func (topo *topo) ConfChanSize(s int) error {
+	if s < 0 {
 		return errors.New("topo: channel size must be non-negative")
 	}
-	topo.csize = csize
+	topo.csize = s
 	return nil
 }
 

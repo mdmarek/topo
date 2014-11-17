@@ -88,7 +88,7 @@ message's key value modulo _m_.
 # Sources
 
 When writing a source of data for the topology it should use the topology's exit channel
-in its select statement, otherwise a deadlock panic may occure. The basic structure is
+in its select statement, otherwise a deadlock panic may occur. The basic structure is
 as follows:
 
 ```go

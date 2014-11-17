@@ -72,20 +72,20 @@ func NewNumberSource(first, last int, t topo.Topo) (<-chan topo.Mesg, error) {
 	return out, nil
 }
 
-// NewMeetup creates a channel of messags sourced from meetup.com's public stream.
+// NewMeetup creates a channel of messages sourced from meetup.com's public stream.
 // More info at: http://www.meetup.com/meetup_api/docs/stream/2/rsvps/
 func NewMeetupSource(t topo.Topo) (<-chan topo.Mesg, error) {
 	return NewChunkedHttpSource("http://stream.meetup.com/2/rsvps", t, "meetup")
 }
 
-// NewUsaGov creates a channel of messags sourced from USA.gov's public stream of bit.ly clicks.
+// NewUsaGov creates a channel of messages sourced from USA.gov's public stream of bit.ly clicks.
 // More info at: http://www.usa.gov/About/developer-resources/1usagov.shtml
 func NewUsaGovSource(t topo.Topo) (<-chan topo.Mesg, error) {
 	return NewChunkedHttpSource("http://developer.usa.gov/1usagov", t, "usagov")
 }
 
 // NewChunkedHttpSource creates a channel of messages sourced from a chunked HTTP connection
-// which sends each message delimited by a newline. Paremter 'url' is the source, and 'name'
+// which sends each message delimited by a newline. Parameter 'url' is the source, and 'name'
 // is included in errors printed.
 func NewChunkedHttpSource(url string, t topo.Topo, name string) (<-chan topo.Mesg, error) {
 	if resp, err := http.Get(url); err != nil {

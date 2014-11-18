@@ -64,7 +64,7 @@ Topo creates channels of type `chan Mesg`, and a `Mesg` is defined as the
 interface: 
 
 ```go
-Mesg { 
+type Mesg interface { 
 	Key() uint64
 	Body() interface{}
 }

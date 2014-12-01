@@ -6,7 +6,7 @@ Topo does boilerplate work as outlined in http://blog.golang.org/pipelines.
 You receive correctly connected input and output channels, leaving the
 message processing for you while handling the plumbing. Topo strives to be
 simple, all interaction are via proper Go channels, no wrapping interfaces.
-Doc: http://godoc.org/github.com/mdmarek/topo
+[Go Doc](http://godoc.org/github.com/mdmarek/topo)
 
 # Example Code
 

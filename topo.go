@@ -16,6 +16,8 @@ package topo
 
 import (
 	"errors"
+	"fmt"
+	"hash/fnv"
 	"sync"
 )
 
@@ -38,7 +40,7 @@ type Topo interface {
 // is used to route the message in certain topologies. Body() is used
 // to express something user specific.
 type Mesg interface {
-	Key() uint64
+	Key() interface{}
 	Body() interface{}
 }
 
@@ -50,11 +52,11 @@ func New() (Topo, error) {
 
 // ConfChanSize configures the size of output channels create by calls to
 // Partition. This method should be called before use of the topology.
-func (topo *topo) ConfChanSize(s int) error {
+func (t *topo) ConfChanSize(s int) error {
 	if s < 0 {
 		return errors.New("topo: channel size must be non-negative")
 	}
-	topo.csize = s
+	t.csize = s
 	return nil
 }
 
@@ -64,16 +66,16 @@ func (topo *topo) ConfChanSize(s int) error {
 // must also read the exit channel in their select-statements
 // and close their output channels and clean up when the exit
 // channel closes.
-func (topo *topo) Exit() {
+func (t *topo) Exit() {
 	select {
-	case _, open := <-topo.sig:
+	case _, open := <-t.sig:
 		if open {
-			close(topo.sig)
+			close(t.sig)
 		} else {
 			// Already closed, do nothing
 		}
 	default:
-		close(topo.sig)
+		close(t.sig)
 	}
 }
 
@@ -82,17 +84,17 @@ func (topo *topo) Exit() {
 // channel in their select-statements because a closed channel is
 // always considered available and will return the channels zero
 // value.
-func (topo *topo) ExitChan() <-chan bool {
-	return topo.sig
+func (t *topo) ExitChan() <-chan bool {
+	return t.sig
 }
 
 // Merge merges the input channels into a single output channel and
 // returns it for further plumbing.
-func (topo *topo) Merge(ins ...<-chan Mesg) <-chan Mesg {
+func (t *topo) Merge(ins ...<-chan Mesg) <-chan Mesg {
 	var wg sync.WaitGroup
 	out := make(chan Mesg)
 
-	fanin := func(in <-chan Mesg) {
+	fanin := func(in <-chan Mesg, exit <-chan bool) {
 		defer wg.Done()
 		// Notice that the for-loop will exit only if upstream
 		// closes the input channel. This is intentional.
@@ -103,7 +105,7 @@ func (topo *topo) Merge(ins ...<-chan Mesg) <-chan Mesg {
 		for n := range in {
 			select {
 			case out <- n:
-			case <-topo.sig:
+			case <-exit:
 				// This works because a closed channel is
 				// always selectable. When someone asks
 				// for the topology to exit, it will
@@ -118,7 +120,7 @@ func (topo *topo) Merge(ins ...<-chan Mesg) <-chan Mesg {
 	wg.Add(len(ins))
 
 	for i := 0; i < len(ins); i++ {
-		go fanin(ins[i])
+		go fanin(ins[i], t.sig)
 	}
 
 	go func() {
@@ -131,11 +133,11 @@ func (topo *topo) Merge(ins ...<-chan Mesg) <-chan Mesg {
 
 // Shuffle runs 'go f' n times and plumbs the toplogy to send messages from the 'ins' channels
 // to some non-busy running f. n output channels are returned for further plumbing.
-func (topo *topo) Shuffle(n int, f func(<-chan Mesg, chan<- Mesg), ins ...<-chan Mesg) []<-chan Mesg {
+func (t *topo) Shuffle(n int, f func(<-chan Mesg, chan<- Mesg), ins ...<-chan Mesg) []<-chan Mesg {
 	var wg sync.WaitGroup
 	wg.Add(n)
 
-	in := topo.Merge(ins...)
+	in := t.Merge(ins...)
 
 	outs := make([]chan Mesg, n)
 	for i := 0; i < n; i++ {
@@ -167,7 +169,7 @@ func (topo *topo) Shuffle(n int, f func(<-chan Mesg, chan<- Mesg), ins ...<-chan
 // Partition runs 'go f' n times and plumbs the toplogy to send messages from the 'ins' channels
 // to the same 'f' consistently. In other words, messages with the same key always go to the
 // same running 'f'. n output channels are returned for further plumbing.
-func (topo *topo) Partition(n int, f func(<-chan Mesg, chan<- Mesg), ins ...<-chan Mesg) []<-chan Mesg {
+func (t *topo) Partition(n int, f func(<-chan Mesg, chan<- Mesg), ins ...<-chan Mesg) []<-chan Mesg {
 
 	// Output channels are closed when all function f's
 	// have exited.
@@ -187,8 +189,8 @@ func (topo *topo) Partition(n int, f func(<-chan Mesg, chan<- Mesg), ins ...<-ch
 	prts := make([]chan Mesg, n)
 	outs := make([]chan Mesg, n)
 	for i := 0; i < n; i++ {
-		prt := make(chan Mesg, topo.csize)
-		out := make(chan Mesg, topo.csize)
+		prt := make(chan Mesg, t.csize)
+		out := make(chan Mesg, t.csize)
 		go func() {
 			defer wgouts.Done()
 			f(prt, out)
@@ -200,11 +202,24 @@ func (topo *topo) Partition(n int, f func(<-chan Mesg, chan<- Mesg), ins ...<-ch
 	for i := 0; i < len(ins); i++ {
 		go func(in <-chan Mesg, exit <-chan bool) {
 			defer wgprts.Done()
+			hash := fnv.New64()
 			// Notice that the for-loop will exit only if upstream
 			// closes the input channel.
 			for m := range in {
+				var key uint64
+
+				switch k := m.Key().(type) {
+				case uint64:
+					key = k
+				default:
+					sk := fmt.Sprintf("%v", k)
+					hash.Write([]byte(sk))
+					key = hash.Sum64()
+					hash.Reset()
+				}
+
 				select {
-				case prts[m.Key()%uint64(n)] <- m:
+				case prts[key%uint64(n)] <- m:
 				case <-exit:
 					// This works because a closed channel is
 					// always selectable. When someone asks
@@ -215,7 +230,7 @@ func (topo *topo) Partition(n int, f func(<-chan Mesg, chan<- Mesg), ins ...<-ch
 					return
 				}
 			}
-		}(ins[i], topo.sig)
+		}(ins[i], t.sig)
 	}
 
 	go func() {

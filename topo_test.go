@@ -25,7 +25,7 @@ type tmesg struct {
 	body string
 }
 
-func (m *tmesg) Key() uint64 {
+func (m *tmesg) Key() interface{} {
 	return m.key
 }
 
@@ -288,15 +288,15 @@ func TestExit(t *testing.T) {
 
 	go func() {
 		m := <-outputs[0]
-		if m.Key() != 0 {
-			t.Errorf("Expected message from outputs[%v] was not %v but rather: %v\n", 0, 0, m.Key())
+		if m.Body() != "0" {
+			t.Errorf("Expected message from outputs[%v] was not %v but rather: %v\n", 0, 0, m.Body())
 		}
 		wg.Done()
 	}()
 	go func() {
 		m := <-outputs[1]
-		if m.Key() != 1 {
-			t.Errorf("Expected message from outputs[%v] was not %v but rather: %v\n", 1, 1, m.Key())
+		if m.Body() != "1" {
+			t.Errorf("Expected message from outputs[%v] was not %v but rather: %v\n", 1, 1, m.Body())
 		}
 		wg.Done()
 	}()

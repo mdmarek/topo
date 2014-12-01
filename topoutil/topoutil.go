@@ -30,7 +30,7 @@ type mesg struct {
 	body string
 }
 
-func (m *mesg) Key() uint64 {
+func (m *mesg) Key() interface{} {
 	return m.key
 }
 

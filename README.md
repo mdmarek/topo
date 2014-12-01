@@ -6,6 +6,7 @@ Topo does boilerplate work as outlined in http://blog.golang.org/pipelines.
 You receive correctly connected input and output channels, leaving the
 message processing for you while handling the plumbing. Topo strives to be
 simple, all interaction are via proper Go channels, no wrapping interfaces.
+Doc: http://godoc.org/github.com/mdmarek/topo
 
 # Example Code
 
@@ -65,10 +66,14 @@ interface:
 
 ```go
 type Mesg interface { 
-	Key() uint64
+	Key() interface{}
 	Body() interface{}
 }
 ```
+
+Keys of type `uint64` are used as is for partitioning. Keys of any other type
+are converted to their string representation and hashed using Go's `hash/fnv`
+package into a `uint64`, which is then used for partitioning.
 
 # Compositions
 

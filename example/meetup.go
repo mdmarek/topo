@@ -91,7 +91,7 @@ func Counter(in <-chan topo.Mesg, out chan<- topo.Mesg) {
 			} else {
 				counts[city] = 1
 			}
-			out <- &meetupmesg{key: m.Key(), body: &CityCount{city: city, count: counts[city]}}
+			out <- &meetupmesg{body: &CityCount{city: city, count: counts[city]}}
 		default:
 			fmt.Printf("unknown message type: %T :: %v", b, b)
 		}
@@ -103,7 +103,7 @@ type meetupmesg struct {
 	body interface{}
 }
 
-func (m *meetupmesg) Key() uint64 {
+func (m *meetupmesg) Key() interface{} {
 	return m.key
 }
 

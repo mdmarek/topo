@@ -90,7 +90,7 @@ func Counter(in <-chan topo.Mesg, out chan<- topo.Mesg) {
 			} else {
 				counts[link] = 1
 			}
-			out <- &usagovmesg{key: m.Key(), body: &LinkCount{link: link, count: counts[link]}}
+			out <- &usagovmesg{body: &LinkCount{link: link, count: counts[link]}}
 		default:
 			fmt.Printf("unknown message type: %T :: %v", b, b)
 		}
@@ -102,7 +102,7 @@ type usagovmesg struct {
 	body interface{}
 }
 
-func (m *usagovmesg) Key() uint64 {
+func (m *usagovmesg) Key() interface{} {
 	return m.key
 }
 
